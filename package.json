@@ -1,7 +1,7 @@
 {
   "name": "job-application-form",
   "version": "1.0.0",
-  "description": "Healthcare job application form with Monday.com integration",
+  "description": "Educational job application form with Monday.com integration",
   "main": "index.html",
   "scripts": {
     "dev": "serve .",
