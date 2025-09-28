@@ -1,0 +1,713 @@
+{
+  "name": "job-application-form",
+  "version": "1.0.0",
+  "description": "Healthcare job application form with Monday.com integration",
+  "main": "index.html",
+  "scripts": {
+    "dev": "serve .",
+    "start": "serve .",
+    "build": "echo 'No build step needed'"
+  },
+  "keywords": ["job-application", "healthcare", "monday.com"],
+  "author": "Your Company",
+  "license": "MIT",
+  "devDependencies": {
+    "serve": "^14.0.0"
+  }
+}{
+  "version": 2,
+  "name": "job-application-form",
+  "builds": [
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Career Opportunities - Job Application</title>
+    <meta name="description" content="Apply for healthcare positions - Speech Language Pathologist, School Psychologist, Occupational Therapist">
+    
+    <!-- React and Dependencies -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Chakra UI -->
+    <script src="https://unpkg.com/@chakra-ui/react@3/dist/chakra-ui-react.min.js"></script>
+    <script src="https://unpkg.com/@emotion/react@11/dist/emotion-react.umd.min.js"></script>
+    <script src="https://unpkg.com/@emotion/styled@11/dist/emotion-styled.umd.min.js"></script>
+    
+    <!-- Lucide React Icons -->
+    <script src="https://unpkg.com/lucide-react@0.263.1/dist/umd/lucide-react.js"></script>
+    
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f7fafc;
+        }
+        
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-size: 18px;
+            color: #4a5568;
+        }
+        
+        /* Ensure icons render properly */
+        .lucide {
+            display: inline-block;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+    <div id="root">
+        <div class="loading">Loading Job Application Form...</div>
+    </div>
+
+    <script>
+        // Configuration - UPDATE THESE VALUES
+        const CONFIG = {
+            API_KEY: 'YOUR_MONDAY_API_KEY_HERE', // Replace with your actual API key
+            BOARD_ID: '18058326311',
+            COMPANY_NAME: 'Your Company Name' // Customize your company name
+        };
+
+        // Wait for scripts to load
+        window.addEventListener('load', function() {
+            // Check if dependencies are loaded
+            if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
+                setTimeout(arguments.callee, 100);
+                return;
+            }
+
+            const { useState } = React;
+
+            // API utility for Monday.com
+            class MondayAPI {
+                constructor(apiKey, boardId) {
+                    this.apiKey = apiKey;
+                    this.boardId = boardId;
+                    this.apiUrl = 'https://api.monday.com/v2';
+                }
+
+                async makeRequest(query, variables = {}) {
+                    try {
+                        const response = await fetch(this.apiUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${this.apiKey}`,
+                                'API-Version': '2024-01'
+                            },
+                            body: JSON.stringify({ query, variables })
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`API request failed: ${response.statusText}`);
+                        }
+
+                        const result = await response.json();
+                        if (result.errors) {
+                            throw new Error(result.errors[0].message);
+                        }
+
+                        return result.data;
+                    } catch (error) {
+                        console.error('Monday.com API Error:', error);
+                        throw error;
+                    }
+                }
+
+                async createItem(formData) {
+                    const query = `
+                        mutation CreateItem($boardId: ID!, $itemName: String!, $columnValues: JSON, $groupId: String) {
+                            create_item(
+                                board_id: $boardId,
+                                item_name: $itemName,
+                                column_values: $columnValues,
+                                group_id: $groupId
+                            ) {
+                                id
+                                name
+                                created_at
+                            }
+                        }
+                    `;
+
+                    const positionsList = formData.currentPositions.length > 0 
+                        ? ` (${formData.currentPositions.join(', ')})`
+                        : '';
+
+                    const variables = {
+                        boardId: this.boardId,
+                        itemName: `${formData.name} - ${formData.position}${positionsList}`,
+                        columnValues: JSON.stringify({ status: "Working on it" }),
+                        groupId: "topics"
+                    };
+
+                    return await this.makeRequest(query, variables);
+                }
+            }
+
+            // Main Job Application Component
+            function JobApplicationForm() {
+                const [formData, setFormData] = useState({
+                    name: '',
+                    email: '',
+                    phone: '',
+                    cityState: '',
+                    position: '',
+                    supportAvailability: '',
+                    currentPositions: [],
+                    additionalInfo: ''
+                });
+
+                const [validationErrors, setValidationErrors] = useState({});
+                const [loading, setLoading] = useState(false);
+                const [submitted, setSubmitted] = useState(false);
+                const [error, setError] = useState(null);
+
+                // Current available positions
+                const currentPositionOptions = [
+                    {
+                        id: 'longbeach-slp',
+                        title: 'Speech and Language Pathologist - Long Beach',
+                        description: 'In-person school assignment in Long Beach',
+                        type: 'Speech Language Pathologist',
+                        location: 'Long Beach, CA',
+                        mode: 'In-Person'
+                    },
+                    {
+                        id: 'nonpublic-psych',
+                        title: 'School Psychologist - Non-Public Schools',
+                        description: 'In-person school psychologist counseling assignment at non-public schools',
+                        type: 'School Psychologist',
+                        location: 'Various Locations',
+                        mode: 'In-Person'
+                    },
+                    {
+                        id: 'assessor-testing',
+                        title: 'Educational Assessor - School Sites',
+                        description: 'Assessor only position, in person testing at school site and IEP meetings held virtually',
+                        type: 'Educational Assessor',
+                        location: 'Various School Sites',
+                        mode: 'Hybrid'
+                    },
+                    {
+                        id: 'future-opportunities',
+                        title: 'Future Opportunities',
+                        description: "I'm not interested in current positions but sharing information for upcoming opportunities",
+                        type: 'Future Interest',
+                        location: 'Various Locations',
+                        mode: 'Future',
+                        isFutureOption: true
+                    }
+                ];
+
+                // Validation
+                const validateForm = () => {
+                    const errors = {};
+                    
+                    if (!formData.name.trim()) errors.name = 'Name is required';
+                    if (!formData.email.trim()) {
+                        errors.email = 'Email is required';
+                    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+                        errors.email = 'Please enter a valid email address';
+                    }
+                    if (!formData.phone.trim()) errors.phone = 'Phone number is required';
+                    if (!formData.cityState.trim()) errors.cityState = 'City/State is required';
+                    if (!formData.position) errors.position = 'Please select a position';
+                    if (!formData.supportAvailability) errors.supportAvailability = 'Please select support availability preference';
+                    if (formData.currentPositions.length === 0) errors.currentPositions = 'Please select at least one current position of interest';
+
+                    setValidationErrors(errors);
+                    return Object.keys(errors).length === 0;
+                };
+
+                // Handle form submission
+                const handleSubmit = async (e) => {
+                    e.preventDefault();
+                    
+                    if (!validateForm()) return;
+                    if (!CONFIG.API_KEY || CONFIG.API_KEY === 'YOUR_MONDAY_API_KEY_HERE') {
+                        setError('API configuration is required. Please contact the administrator.');
+                        return;
+                    }
+
+                    setLoading(true);
+                    setError(null);
+
+                    try {
+                        const mondayAPI = new MondayAPI(CONFIG.API_KEY, CONFIG.BOARD_ID);
+                        const result = await mondayAPI.createItem(formData);
+
+                        if (result?.create_item?.id) {
+                            setSubmitted(true);
+                            setTimeout(() => {
+                                setFormData({
+                                    name: '', email: '', phone: '', cityState: '', position: '',
+                                    supportAvailability: '', currentPositions: [], additionalInfo: ''
+                                });
+                                setValidationErrors({});
+                                setSubmitted(false);
+                            }, 5000);
+                        } else {
+                            throw new Error('Failed to create application record');
+                        }
+                    } catch (err) {
+                        console.error('Application submission error:', err);
+                        setError(err.message || 'Failed to submit application. Please try again.');
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+
+                // Handle input changes
+                const handleChange = (field) => (e) => {
+                    setFormData(prev => ({ ...prev, [field]: e.target.value }));
+                    if (validationErrors[field]) {
+                        setValidationErrors(prev => ({ ...prev, [field]: '' }));
+                    }
+                };
+
+                // Handle checkbox changes
+                const handleCurrentPositionChange = (positionId, checked) => {
+                    const updatedPositions = checked 
+                        ? [...formData.currentPositions, positionId]
+                        : formData.currentPositions.filter(id => id !== positionId);
+                    
+                    setFormData(prev => ({ ...prev, currentPositions: updatedPositions }));
+                    if (updatedPositions.length > 0 && validationErrors.currentPositions) {
+                        setValidationErrors(prev => ({ ...prev, currentPositions: '' }));
+                    }
+                };
+
+                return React.createElement('div', { style: { minHeight: '100vh', backgroundColor: '#f7fafc' } },
+                    // Header
+                    React.createElement('div', { 
+                        style: { 
+                            backgroundColor: 'white', 
+                            borderBottom: '1px solid #e2e8f0', 
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                            padding: '1rem 0'
+                        } 
+                    },
+                        React.createElement('div', { 
+                            style: { 
+                                maxWidth: '1200px', 
+                                margin: '0 auto', 
+                                padding: '0 1rem',
+                                textAlign: 'center'
+                            } 
+                        },
+                            React.createElement('h1', { 
+                                style: { 
+                                    margin: '0 0 0.5rem 0', 
+                                    fontSize: '1.875rem', 
+                                    fontWeight: 'bold',
+                                    color: '#1a202c'
+                                } 
+                            }, `${CONFIG.COMPANY_NAME} - Career Opportunities`),
+                            React.createElement('p', { 
+                                style: { 
+                                    margin: '0', 
+                                    color: '#4a5568',
+                                    fontSize: '1.125rem'
+                                } 
+                            }, "Join our team of healthcare professionals making a difference")
+                        )
+                    ),
+
+                    // Main Content
+                    React.createElement('div', { 
+                        style: { 
+                            maxWidth: '800px', 
+                            margin: '0 auto', 
+                            padding: '2rem 1rem'
+                        } 
+                    },
+                        React.createElement('div', { 
+                            style: { 
+                                backgroundColor: 'white', 
+                                borderRadius: '12px',
+                                boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                                padding: '2rem'
+                            } 
+                        },
+                            React.createElement('form', { onSubmit: handleSubmit },
+                                // Form Header
+                                React.createElement('div', { style: { textAlign: 'center', marginBottom: '2rem' } },
+                                    React.createElement('h2', { 
+                                        style: { 
+                                            margin: '0 0 0.5rem 0', 
+                                            fontSize: '1.5rem',
+                                            fontWeight: 'bold',
+                                            color: '#1a202c'
+                                        } 
+                                    }, "Job Application Form"),
+                                    React.createElement('p', { 
+                                        style: { 
+                                            margin: '0', 
+                                            color: '#4a5568'
+                                        } 
+                                    }, "Please fill out all required fields to submit your application")
+                                ),
+
+                                // Success/Error Messages
+                                submitted && React.createElement('div', { 
+                                    style: { 
+                                        background: '#d4edda', 
+                                        border: '1px solid #c3e6cb', 
+                                        color: '#155724',
+                                        padding: '1rem',
+                                        borderRadius: '8px',
+                                        marginBottom: '1.5rem',
+                                        textAlign: 'center'
+                                    } 
+                                },
+                                    React.createElement('strong', null, "✅ Application Submitted Successfully!"),
+                                    React.createElement('br'),
+                                    "Thank you for your interest. We'll review your application and get back to you soon."
+                                ),
+
+                                error && React.createElement('div', { 
+                                    style: { 
+                                        background: '#f8d7da', 
+                                        border: '1px solid #f5c6cb', 
+                                        color: '#721c24',
+                                        padding: '1rem',
+                                        borderRadius: '8px',
+                                        marginBottom: '1.5rem'
+                                    } 
+                                }, error),
+
+                                // Personal Information Section
+                                React.createElement('div', { style: { marginBottom: '2rem' } },
+                                    React.createElement('h3', { 
+                                        style: { 
+                                            color: '#1a202c', 
+                                            marginBottom: '1rem',
+                                            fontSize: '1.25rem',
+                                            fontWeight: '600'
+                                        } 
+                                    }, "👤 Personal Information"),
+                                    
+                                    // Name
+                                    React.createElement('div', { style: { marginBottom: '1rem' } },
+                                        React.createElement('label', { 
+                                            style: { 
+                                                display: 'block', 
+                                                marginBottom: '0.5rem', 
+                                                fontWeight: '500',
+                                                color: '#2d3748'
+                                            } 
+                                        }, "Full Name *"),
+                                        React.createElement('input', {
+                                            type: 'text',
+                                            value: formData.name,
+                                            onChange: handleChange('name'),
+                                            placeholder: 'Enter your full name',
+                                            style: {
+                                                width: '100%',
+                                                padding: '0.75rem',
+                                                border: '2px solid #e2e8f0',
+                                                borderRadius: '8px',
+                                                fontSize: '1rem',
+                                                borderColor: validationErrors.name ? '#e53e3e' : '#e2e8f0',
+                                                outline: 'none',
+                                                transition: 'border-color 0.2s'
+                                            },
+                                            disabled: loading,
+                                            onFocus: (e) => e.target.style.borderColor = '#3182ce',
+                                            onBlur: (e) => e.target.style.borderColor = validationErrors.name ? '#e53e3e' : '#e2e8f0'
+                                        }),
+                                        validationErrors.name && React.createElement('div', { 
+                                            style: { color: '#e53e3e', fontSize: '0.875rem', marginTop: '0.25rem' } 
+                                        }, validationErrors.name)
+                                    ),
+
+                                    // Email and Phone Row
+                                    React.createElement('div', { 
+                                        style: { 
+                                            display: 'grid', 
+                                            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                                            gap: '1rem', 
+                                            marginBottom: '1rem'
+                                        } 
+                                    },
+                                        React.createElement('div', null,
+                                            React.createElement('label', { 
+                                                style: { 
+                                                    display: 'block', 
+                                                    marginBottom: '0.5rem', 
+                                                    fontWeight: '500',
+                                                    color: '#2d3748'
+                                                } 
+                                            }, "📧 Email Address *"),
+                                            React.createElement('input', {
+                                                type: 'email',
+                                                value: formData.email,
+                                                onChange: handleChange('email'),
+                                                placeholder: 'your.email@example.com',
+                                                style: {
+                                                    width: '100%',
+                                                    padding: '0.75rem',
+                                                    border: '2px solid #e2e8f0',
+                                                    borderRadius: '8px',
+                                                    fontSize: '1rem',
+                                                    borderColor: validationErrors.email ? '#e53e3e' : '#e2e8f0',
+                                                    outline: 'none'
+                                                },
+                                                disabled: loading,
+                                                onFocus: (e) => e.target.style.borderColor = '#3182ce',
+                                                onBlur: (e) => e.target.style.borderColor = validationErrors.email ? '#e53e3e' : '#e2e8f0'
+                                            }),
+                                            validationErrors.email && React.createElement('div', { 
+                                                style: { color: '#e53e3e', fontSize: '0.875rem', marginTop: '0.25rem' } 
+                                            }, validationErrors.email)
+                                        ),
+                                        React.createElement('div', null,
+                                            React.createElement('label', { 
+                                                style: { 
+                                                    display: 'block', 
+                                                    marginBottom: '0.5rem', 
+                                                    fontWeight: '500',
+                                                    color: '#2d3748'
+                                                } 
+                                            }, "📞 Phone Number *"),
+                                            React.createElement('input', {
+                                                type: 'tel',
+                                                value: formData.phone,
+                                                onChange: handleChange('phone'),
+                                                placeholder: '(555) 123-4567',
+                                                style: {
+                                                    width: '100%',
+                                                    padding: '0.75rem',
+                                                    border: '2px solid #e2e8f0',
+                                                    borderRadius: '8px',
+                                                    fontSize: '1rem',
+                                                    borderColor: validationErrors.phone ? '#e53e3e' : '#e2e8f0',
+                                                    outline: 'none'
+                                                },
+                                                disabled: loading,
+                                                onFocus: (e) => e.target.style.borderColor = '#3182ce',
+                                                onBlur: (e) => e.target.style.borderColor = validationErrors.phone ? '#e53e3e' : '#e2e8f0'
+                                            }),
+                                            validationErrors.phone && React.createElement('div', { 
+                                                style: { color: '#e53e3e', fontSize: '0.875rem', marginTop: '0.25rem' } 
+                                            }, validationErrors.phone)
+                                        )
+                                    ),
+
+                                    // City/State
+                                    React.createElement('div', { style: { marginBottom: '1rem' } },
+                                        React.createElement('label', { 
+                                            style: { 
+                                                display: 'block', 
+                                                marginBottom: '0.5rem', 
+                                                fontWeight: '500',
+                                                color: '#2d3748'
+                                            } 
+                                        }, "📍 City/State *"),
+                                        React.createElement('input', {
+                                            type: 'text',
+                                            value: formData.cityState,
+                                            onChange: handleChange('cityState'),
+                                            placeholder: 'e.g., Austin, TX',
+                                            style: {
+                                                width: '100%',
+                                                padding: '0.75rem',
+                                                border: '2px solid #e2e8f0',
+                                                borderRadius: '8px',
+                                                fontSize: '1rem',
+                                                borderColor: validationErrors.cityState ? '#e53e3e' : '#e2e8f0',
+                                                outline: 'none'
+                                            },
+                                            disabled: loading,
+                                            onFocus: (e) => e.target.style.borderColor = '#3182ce',
+                                            onBlur: (e) => e.target.style.borderColor = validationErrors.cityState ? '#e53e3e' : '#e2e8f0'
+                                        }),
+                                        validationErrors.cityState && React.createElement('div', { 
+                                            style: { color: '#e53e3e', fontSize: '0.875rem', marginTop: '0.25rem' } 
+                                        }, validationErrors.cityState)
+                                    )
+                                ),
+
+                                // Position Preferences
+                                React.createElement('div', { style: { marginBottom: '2rem' } },
+                                    React.createElement('h3', { 
+                                        style: { 
+                                            color: '#1a202c', 
+                                            marginBottom: '1rem',
+                                            fontSize: '1.25rem',
+                                            fontWeight: '600'
+                                        } 
+                                    }, "💼 Position & Preferences"),
+                                    
+                                    // Position Type
+                                    React.createElement('div', { style: { marginBottom: '1rem' } },
+                                        React.createElement('label', { 
+                                            style: { 
+                                                display: 'block', 
+                                                marginBottom: '0.5rem', 
+                                                fontWeight: '500',
+                                                color: '#2d3748'
+                                            } 
+                                        }, "Position Type *"),
+                                        React.createElement('select', {
+                                            value: formData.position,
+                                            onChange: (e) => setFormData(prev => ({ ...prev, position: e.target.value })),
+                                            style: {
+                                                width: '100%',
+                                                padding: '0.75rem',
+                                                border: '2px solid #e2e8f0',
+                                                borderRadius: '8px',
+                                                fontSize: '1rem',
+                                                borderColor: validationErrors.position ? '#e53e3e' : '#e2e8f0',
+                                                outline: 'none',
+                                                backgroundColor: 'white'
+                                            },
+                                            disabled: loading,
+                                            onFocus: (e) => e.target.style.borderColor = '#3182ce',
+                                            onBlur: (e) => e.target.style.borderColor = validationErrors.position ? '#e53e3e' : '#e2e8f0'
+                                        },
+                                            React.createElement('option', { value: '' }, "Select position type..."),
+                                            React.createElement('option', { value: 'speech-language-pathologist' }, "Speech Language Pathologist"),
+                                            React.createElement('option', { value: 'school-psychologist' }, "School Psychologist"),
+                                            React.createElement('option', { value: 'occupational-therapist' }, "Occupational Therapist")
+                                        ),
+                                        validationErrors.position && React.createElement('div', { 
+                                            style: { color: '#e53e3e', fontSize: '0.875rem', marginTop: '0.25rem' } 
+                                        }, validationErrors.position)
+                                    ),
+
+                                    // Support Availability
+                                    React.createElement('div', { style: { marginBottom: '1rem' } },
+                                        React.createElement('label', { 
+                                            style: { 
+                                                display: 'block', 
+                                                marginBottom: '0.5rem', 
+                                                fontWeight: '500',
+                                                color: '#2d3748'
+                                            } 
+                                        }, "⚙️ Support Availability Preference *"),
+                                        React.createElement('select', {
+                                            value: formData.supportAvailability,
+                                            onChange: (e) => setFormData(prev => ({ ...prev, supportAvailability: e.target.value })),
+                                            style: {
+                                                width: '100%',
+                                                padding: '0.75rem',
+                                                border: '2px solid #e2e8f0',
+                                                borderRadius: '8px',
+                                                fontSize: '1rem',
+                                                borderColor: validationErrors.supportAvailability ? '#e53e3e' : '#e2e8f0',
+                                                outline: 'none',
+                                                backgroundColor: 'white'
+                                            },
+                                            disabled: loading,
+                                            onFocus: (e) => e.target.style.borderColor = '#3182ce',
+                                            onBlur: (e) => e.target.style.borderColor = validationErrors.supportAvailability ? '#e53e3e' : '#e2e8f0'
+                                        },
+                                            React.createElement('option', { value: '' }, "Select availability preference..."),
+                                            React.createElement('option', { value: 'inperson' }, "In-Person"),
+                                            React.createElement('option', { value: 'virtual' }, "Virtual"),
+                                            React.createElement('option', { value: 'both' }, "Both")
+                                        ),
+                                        validationErrors.supportAvailability && React.createElement('div', { 
+                                            style: { color: '#e53e3e', fontSize: '0.875rem', marginTop: '0.25rem' } 
+                                        }, validationErrors.supportAvailability)
+                                    )
+                                ),
+
+                                // Submit Button
+                                React.createElement('button', {
+                                    type: 'submit',
+                                    disabled: loading || submitted,
+                                    style: {
+                                        width: '100%',
+                                        padding: '1rem',
+                                        backgroundColor: loading || submitted ? '#a0aec0' : '#3b82f6',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        fontSize: '1.125rem',
+                                        fontWeight: '600',
+                                        cursor: loading || submitted ? 'not-allowed' : 'pointer',
+                                        marginBottom: '1rem',
+                                        transition: 'background-color 0.2s',
+                                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                                    },
+                                    onMouseEnter: (e) => {
+                                        if (!loading && !submitted) {
+                                            e.target.style.backgroundColor = '#2563eb';
+                                        }
+                                    },
+                                    onMouseLeave: (e) => {
+                                        if (!loading && !submitted) {
+                                            e.target.style.backgroundColor = '#3b82f6';
+                                        }
+                                    }
+                                }, 
+                                    loading ? '🚀 Submitting Application...' : submitted ? '✅ Application Submitted!' : '🚀 Submit Application'),
+
+                                React.createElement('div', { 
+                                    style: { 
+                                        textAlign: 'center', 
+                                        fontSize: '0.75rem', 
+                                        color: '#4a5568'
+                                    } 
+                                }, "* Required fields")
+                            )
+                        )
+                    )
+                );
+            }
+
+            // Render the app
+            ReactDOM.render(React.createElement(JobApplicationForm), document.getElementById('root'));
+        });
+    </script>
+</body>
+</html>
+# Job Application Form - Vercel Deployment
+
+## Quick Deploy to Vercel
+
+### Step 1: Create GitHub Repository
+1. Go to [GitHub.com](https://github.com) and create a new repository
+2. Name it: `job-application-form`
+3. Upload these files:
+   - `index.html`
+   - `package.json` 
+   - `vercel.json`
+   - `README.md`
+
+### Step 2: Deploy to Vercel
+1. Go to [Vercel.com](https://vercel.com)
+2. Click "Import Project"
+3. Connect your GitHub repository
+4. Click "Deploy" - that's it!
+
+### Step 3: Configure Your Form
+1. Open your deployed site
+2. Edit the CONFIG section in `index.html`:
+   ```javascript
+   const CONFIG = {
+       API_KEY: 'your_monday_api_key_here',
+       BOARD_ID: '18058326311', 
+       COMPANY_NAME: 'Your Company Name'
+   };
