@@ -8,7 +8,7 @@
     "start": "serve .",
     "build": "echo 'No build step needed'"
   },
-  "keywords": ["job-application", "healthcare", "monday.com"],
+  "keywords": ["job-application", "educational", "monday.com"],
   "author": "Your Company",
   "license": "MIT",
   "devDependencies": {
