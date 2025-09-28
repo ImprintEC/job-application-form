@@ -1,0 +1,17 @@
+{
+  "name": "job-application-form",
+  "version": "1.0.0",
+  "description": "Healthcare job application form with Monday.com integration",
+  "main": "index.html",
+  "scripts": {
+    "dev": "serve .",
+    "start": "serve .",
+    "build": "echo 'No build step needed'"
+  },
+  "keywords": ["job-application", "healthcare", "monday.com"],
+  "author": "Your Company",
+  "license": "MIT",
+  "devDependencies": {
+    "serve": "^14.0.0"
+  }
+}
