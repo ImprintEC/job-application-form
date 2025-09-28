@@ -22,7 +22,7 @@
 2. Edit the CONFIG section in `index.html`:
    ```javascript
    const CONFIG = {
-       API_KEY: 'your_monday_api_key_here',
+       API_KEY: 'eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjU2NzI4NDk0MywiYWFpIjoxMSwidWlkIjo2Nzg0MTQ5NSwiaWFkIjoiMjAyNS0wOS0yN1QxNzowMTozNC4wMDBaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6MjYxOTM3NTIsInJnbiI6InVzZTEifQ.Rmap598eIGGPppjSrV65NlRIjP2-EHlj3FW1ZBwLl6g',
        BOARD_ID: '18058326311', 
-       COMPANY_NAME: 'Your Company Name'
+       COMPANY_NAME: 'Imprint Education Consulting'
    };
